@@ -4,6 +4,7 @@ import os
 import utils
 import torch
 from torch.utils.tensorboard import SummaryWriter
+from models import Encoder
 
 
 def add_arguments(parser):
@@ -38,10 +39,7 @@ def main(args):
 
     train_dataset, val_dataset = utils.get_datasets(args)
 
-    print(len(train_dataset), len(val_dataset))
-
-
-
+    logger.info((len(train_dataset), len(val_dataset)))
 
     return
 
