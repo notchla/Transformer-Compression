@@ -1,1 +1,1 @@
-from .xcit import Encoder
+from .xcit import Encoder, Decoder

@@ -179,3 +179,104 @@ class Encoder(nn.Module):
     def forward(self, x):
         x = self.forward_features(x)
         return x
+
+
+class StyleMlp(nn.Module):
+    def __init__(self, in_features, hidden_features=None, out_features=None, n_layers=4):
+        super().__init__()
+        out_features = out_features or in_features
+        hidden_features = hidden_features or in_features
+
+        act_fun = nn.ReLU
+        layers = []
+
+        layers.append(nn.Linear(in_features, hidden_features))
+        layers.append(act_fun())
+        for _ in range(n_layers-1):
+            layers.append(nn.Linear(hidden_features, hidden_features))
+            layers.append(act_fun())
+
+        self.model = nn.Sequential(*(layers))
+            
+
+    def forward(self, x):
+        return self.model(x)
+
+class Decoder(nn.Module):
+    def __init__(
+        self, embed_dim=128, 
+        depth=4, num_heads=4, mlp_ratio=4., qkv_bias=True,
+        drop_rate=0., attn_drop_rate=0., drop_path_rate=0.,
+        act_layer=nn.GELU, norm_layer=partial(nn.LayerNorm, eps=1e-6), eta=1., style_hidden=None) -> None:
+        """
+        Args:
+            img_size (int, tuple): input image size
+            patch_size (int): patch size
+            embed_dim (int): embedding dimension
+            depth (int): depth of transformer
+            num_heads (int): number of attention heads
+            mlp_ratio (int): ratio of mlp hidden dim to embedding dim
+            qkv_bias (bool): enable bias for qkv if True
+            drop_rate (float): dropout rate after positional embedding, and in XCA/CA projection + MLP
+            attn_drop_rate (float): attention dropout rate
+            drop_path_rate (float): stochastic depth rate (constant across all layers)
+            act_layer (nn.Module) activation layer
+            norm_layer: (nn.Module): normalization layer
+            eta: (float) layerscale initialization value
+        Notes:
+            - Although `norm_layer` is user specifiable, there are hard-coded `BatchNorm2d`s in the local patch
+              interaction (class LPI)
+        """
+        super().__init__()
+        # if type(img_size) is not tuple:
+        #     img_size = to_2tuple(img_size)
+
+        # assert (img_size[0] % patch_size == 0) and (img_size[0] % patch_size == 0), \
+        #     '`patch_size` should divide image dimensions evenly'
+
+        self.embed_dim = embed_dim
+        self.pos_drop = nn.Dropout(p=drop_rate)
+
+        style_hidden = style_hidden or embed_dim
+        self.style_mlp = StyleMlp(embed_dim, hidden_features=style_hidden)
+        self.modulation_layers = [nn.Linear(style_hidden, embed_dim) for _ in range(depth)]
+
+
+        # self.H = img_size[0]
+        # self.W = img_size[1]
+
+        self.blocks = nn.ModuleList([
+        XCABlock(
+            dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, drop=drop_rate,
+            attn_drop=attn_drop_rate, drop_path=drop_path_rate, act_layer=act_layer, norm_layer=norm_layer, eta=eta)
+        for _ in range(depth)])
+
+        #Init weights
+        self.apply(self._init_weights)
+
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            trunc_normal_(m.weight, std=.02)
+            if isinstance(m, nn.Linear) and m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+
+
+    def forward_features(self, x, cls_token):
+        B = x.shape[0]
+        # x is (B, N, C). (Hp, Hw) is (height in units of patches, width in units of patches)
+
+        x = self.pos_drop(x)
+
+        for i, blk in enumerate(self.blocks):
+
+            B, N, C = x.shape
+            modulation = self.style_mlp(cls_token)
+            modulation = self.modulation_layers[i](modulation)
+            modulation = modulation.expand(N, -1, -1).permute(1, 0, 2)
+            x = blk(x*modulation) #try sum or sum and mul
+
+        return x #cls token
+    
+    def forward(self, x, cls_token):
+        x = self.forward_features(x, cls_token)
+        return x

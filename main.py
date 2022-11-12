@@ -4,7 +4,7 @@ import os
 import utils
 import torch
 from torch.utils.tensorboard import SummaryWriter
-from models import Encoder
+from models import Encoder, Decoder
 
 
 def add_arguments(parser):
@@ -40,6 +40,29 @@ def main(args):
     train_dataset, val_dataset = utils.get_datasets(args)
 
     logger.info((len(train_dataset), len(val_dataset)))
+
+    x = torch.rand((5, 224*224, 64))
+
+    logger.info(x.shape)
+
+    encoder = Encoder(embed_dim=64)
+
+    logger.info(encoder)
+
+    cls = encoder(x)
+
+    logger.info(cls.shape)
+
+    decoder = Decoder(embed_dim=64)
+
+    logger.info(decoder)
+
+    x = decoder(x, cls)
+
+    logger.info(x.shape)
+
+
+
 
     return
 
