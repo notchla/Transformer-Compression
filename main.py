@@ -5,7 +5,7 @@ import utils
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from models import Encoder, Decoder
-
+from datasets import CoordDataset
 
 def add_arguments(parser):
     parser.add_argument("--save_dir", default='runs', type=str, help='path to save trained models and logs')
@@ -41,25 +41,12 @@ def main(args):
 
     logger.info((len(train_dataset), len(val_dataset)))
 
-    x = torch.rand((5, 224*224, 64))
+    img_resolution = (train_dataset.size[1], train_dataset.size[0])
 
-    logger.info(x.shape)
+    train_dataset = CoordDataset(train_dataset, img_resolution=img_resolution)
+    val_dataset = CoordDataset(val_dataset, img_resolution=img_resolution)
 
-    encoder = Encoder(embed_dim=64)
-
-    logger.info(encoder)
-
-    cls = encoder(x)
-
-    logger.info(cls.shape)
-
-    decoder = Decoder(embed_dim=64)
-
-    logger.info(decoder)
-
-    x = decoder(x, cls)
-
-    logger.info(x.shape)
+        
 
 
 
