@@ -8,6 +8,9 @@ from itertools import repeat
 import torch
 import warnings
 import math
+import time
+import numpy as np
+import skimage
 
 def get_logger(logdir):
     logger = logging.getLogger('emotion')
@@ -103,3 +106,167 @@ def _trunc_normal_(tensor, mean, std, a, b):
     return tensor
 
 
+def save_checkpoint(states, is_best, output_dir,
+                    filename='checkpoint.pth.tar'):
+    """Save model checkpoint
+
+    Args:
+        states: model states.
+        is_best (bool): whether to save this model as best model so far.
+        output_dir (str): output directory to save the checkpoint
+        filename (str): checkpoint name
+    """
+    torch.save(states, os.path.join(output_dir, filename))
+    if is_best and 'state_dict' in states:
+        torch.save(states['state_dict'],
+                   os.path.join(output_dir, 'model_best.pth.tar'))
+
+class AverageMeter(object):
+    """Computes and stores the average and current value"""
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count if self.count != 0 else 0
+
+
+def train(train_dataloader, model, loss, optim, epoch, writer, logger, device, scaler, args):
+
+    batch_time = AverageMeter()
+    data_time = AverageMeter()
+    losses = AverageMeter()
+
+    model.train()
+    end = time.time()
+
+    for i, (input, target) in enumerate(train_dataloader):
+        img = input["img"]
+        coords = input["coords"]
+        gt_image = target["img"]
+
+        data_time.update(time.time() - end)
+
+        img = img.to(device)
+        coords = coords.to(device)
+        gt_image = gt_image.to(device)
+
+        with torch.cuda.amp.autocast(enabled=True):
+            output = model(img, coords)
+            loss_batch = loss(output, gt_image)
+
+        optim.zero_grad()
+        if scaler:
+            scaler.scale(loss_batch).backward()
+            scaler.step(optim)
+            scaler.update()
+        else:
+            loss_batch.backward()
+            optim.step()
+
+        losses.update(loss_batch.item(), img.size(0))
+
+        batch_time.update(time.time() - end)
+        end = time.time()
+
+        if i % args.frequent == 0:
+            msg = 'Epoch: [{0}][{1}/{2}]\t' \
+                  'Time {batch_time.val:.3f}s ({batch_time.avg:.3f}s)\t' \
+                  'Speed {speed:.1f} samples/s\t' \
+                  'Data {data_time.val:.3f}s ({data_time.avg:.3f}s)\t' \
+                  'Loss {loss.val:.5f} ({loss.avg:.5f})'.format(
+                      epoch, i, len(train_dataloader), batch_time=batch_time,
+                      speed=img.size(0)/batch_time.val,
+                      data_time=data_time, loss=losses)
+            logger.info(msg)
+            print(msg)
+
+            global_steps = i + epoch*len(train_dataloader)
+            writer.add_scalar('train_loss', losses.val, global_steps)
+
+def lin2img(tensor, image_resolution=None):
+    batch_size, _ , channels = tensor.shape
+    
+    
+    height = image_resolution[0]
+    width = image_resolution[1]
+
+    return tensor.permute(0, 2, 1).view(batch_size, channels, height, width)
+
+def psnr_ssim(pred_img, gt_img):
+    batch_size = pred_img.shape[0]
+
+    pred_img = pred_img.detach().cpu().numpy()
+    gt_img = gt_img.detach().cpu().numpy()
+
+    psnrs, ssims = list(), list()
+
+    for i in range(batch_size):
+        p = pred_img[i].transpose(1, 2, 0)
+        trgt = gt_img[i].transpose(1, 2, 0)
+
+        p = np.clip(p, a_min=0., a_max=1.)
+
+        ssim = skimage.metrics.structural_similarity(p, trgt, multichannel=True, data_range=1)
+        psnr = skimage.metrics.peak_signal_noise_ratio(p, trgt, data_range=1)
+
+        psnrs.append(psnr)
+        ssims.append(ssim)
+    return np.mean(np.asarray(psnrs)), np.mean(np.asarray(ssims))
+
+def validate(val_dataloader, model, loss, epoch, writer, logger, device, image_resolution, args):
+
+    batch_time = AverageMeter()
+    losses = AverageMeter()
+    psnrs = AverageMeter()
+
+    model.eval()
+
+    with torch.no_grad():
+        end = time.time()
+        for i, (input, target) in enumerate(val_dataloader):
+            img = input["img"]
+            coords = input["coords"]
+            gt_image = target["img"]
+
+
+            img = img.to(device)
+            coords = coords.to(device)
+            gt_image = gt_image.to(device)
+
+            with torch.cuda.amp.autocast(enabled=True):
+
+                output = model(img, coords)
+
+                loss_batch = loss(output, gt_image)
+
+            num_images = img.size(0)
+            losses.update(loss_batch.item(), num_images)
+            psnr, ssim = psnr_ssim(lin2img(output, image_resolution), lin2img(gt_image, image_resolution))
+            psnrs.update(psnr, num_images)
+
+            batch_time.update(time.time() - end)
+            end = time.time()
+
+            if i % args.frequent == 0:
+                msg = 'Test: [{0}/{1}]\t' \
+                      'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t' \
+                      'Loss {loss.val:.4f} ({loss.avg:.4f})\t'\
+                        'Psnr {psnr.val:.4f} ({psnr.avg:.4f})'.format(
+                          i, len(val_dataloader), batch_time=batch_time,
+                          loss=losses, psnr=psnrs)
+
+                logger.info(msg)
+                print(msg)
+                
+        writer.add_scalar('val_loss', losses.avg, epoch)
+    
+    return psnrs.avg #replace with psnr

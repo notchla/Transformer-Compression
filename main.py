@@ -4,8 +4,9 @@ import os
 import utils
 import torch
 from torch.utils.tensorboard import SummaryWriter
-from models import Encoder, Decoder
+from models import Model
 from datasets import CoordDataset
+from torch.utils.data import DataLoader
 
 def add_arguments(parser):
     parser.add_argument("--save_dir", default='runs', type=str, help='path to save trained models and logs')
@@ -25,7 +26,48 @@ def add_arguments(parser):
         choices=(
             "DIV2K"
         ),
-)
+    )
+
+    parser.add_argument(
+        "--batch_size",
+        default=1,
+        type=int,
+        help="batch size"
+    )
+
+    parser.add_argument(
+        "--num_workers",
+        default=4,
+        type=int,
+        help="batch size"
+    )
+    parser.add_argument(
+        "--lr",
+        default=1e-3,
+        type=float,
+        help="optimizer lr"
+    )
+
+    parser.add_argument(
+        "--epochs",
+        default=2,
+        type=int,
+        help="number of epochs"
+    )
+
+    parser.add_argument(
+        "--frequent",
+        default=10,
+        type=int,
+        help="frequency of logging"
+    )
+
+    parser.add_argument(
+        "--token_size",
+        default=64,
+        type=int,
+        help="token size"
+    )
 
 def main(args):
     print(args)
@@ -46,12 +88,52 @@ def main(args):
     train_dataset = CoordDataset(train_dataset, img_resolution=img_resolution)
     val_dataset = CoordDataset(val_dataset, img_resolution=img_resolution)
 
-        
+    train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, pin_memory=True)
+    val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=True)
+
+    model = Model(args.token_size)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if device == "cuda" : torch.backends.cudnn.benchmark = True
+
+    scaler = None
+    if device == "cuda":
+        scaler = torch.cuda.amp.GradScaler()
+
+    model = model.to(device)
+
+    optim = torch.optim.Adam(lr=args.lr, params=model.parameters())
+
+    loss = torch.nn.MSELoss().to(device)
 
 
+    best_perf = 0.0
+    best_model = False
+    train_epochs = args.epochs
 
+    for epoch in range(train_epochs):
+        utils.train(train_dataloader, model, loss, optim, epoch, writer, logger, device, scaler, args)
+        val_perf = utils.validate(val_dataloader, model, loss, epoch, writer, logger, device, img_resolution, args)
 
-    return
+        if val_perf > best_perf:
+            best_perf = val_perf
+            best_model=True
+        else:
+            best_model = False
+        logger.info("=> saving chekpoint to {}".format(logdir))
+        utils.save_checkpoint({
+            "epoch" : epoch + 1,
+            "state_dict" : model.state_dict(),
+            "perf" : val_perf,
+            "last_epoch": epoch,
+            "optimizer": optim.state_dict()
+        }, best_model, logdir)
+    
+    final_model_state_file = os.path.join(logdir, "final_state.pth.tar")
+    logger.info('saving final model state to {}'.format(
+        final_model_state_file))
+    torch.save(model.state_dict(), final_model_state_file)
+    writer.close()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(fromfile_prefix_chars="@")

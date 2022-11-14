@@ -239,7 +239,7 @@ class Decoder(nn.Module):
 
         style_hidden = style_hidden or embed_dim
         self.style_mlp = StyleMlp(embed_dim, hidden_features=style_hidden)
-        self.modulation_layers = [nn.Linear(style_hidden, embed_dim) for _ in range(depth)]
+        self.modulation_layers = nn.ModuleList([nn.Linear(style_hidden, embed_dim) for _ in range(depth)])
 
 
         # self.H = img_size[0]

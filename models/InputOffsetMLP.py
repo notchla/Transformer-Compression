@@ -12,7 +12,7 @@ class PointWiseInputOffsetMLP(nn.Module):
         self.activation = act_layer
 
         first_layer = nn.Linear(self.input_size, self.hidden_dim)
-        layers = [first_layer]
+        layers = nn.ModuleList([first_layer])
 
         for _ in range(self.depth -2):
             layers.append(nn.Linear(self.hidden_dim, self.hidden_dim))
