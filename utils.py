@@ -11,6 +11,7 @@ import math
 import time
 import numpy as np
 import skimage
+from torchvision.utils import make_grid
 
 def get_logger(logdir):
     logger = logging.getLogger('emotion')
@@ -159,20 +160,21 @@ def train(train_dataloader, model, loss, optim, epoch, writer, logger, device, s
         coords = coords.to(device)
         gt_image = gt_image.to(device)
 
-        with torch.cuda.amp.autocast(enabled=True):
+        with torch.cuda.amp.autocast(enabled=args.amp):
             output = model(img, coords)
+            # logger.info(output)
             loss_batch = loss(output, gt_image)
 
         optim.zero_grad()
-        if scaler:
-            scaler.scale(loss_batch).backward()
-            scaler.step(optim)
-            scaler.update()
-        else:
-            loss_batch.backward()
-            optim.step()
+        
+        scaler.scale(loss_batch).backward()
+        scaler.step(optim)
+        scaler.update()
 
         losses.update(loss_batch.item(), img.size(0))
+        # for name, param in model.named_parameters():
+        #     if param.requires_grad:
+        #         logger.info(name + " " + str(param.data))
 
         batch_time.update(time.time() - end)
         end = time.time()
@@ -213,7 +215,10 @@ def psnr_ssim(pred_img, gt_img):
         p = pred_img[i].transpose(1, 2, 0)
         trgt = gt_img[i].transpose(1, 2, 0)
 
+        p = (p / 2.) + 0.5
         p = np.clip(p, a_min=0., a_max=1.)
+
+        trgt = (trgt / 2.) + 0.5
 
         ssim = skimage.metrics.structural_similarity(p, trgt, multichannel=True, data_range=1)
         psnr = skimage.metrics.peak_signal_noise_ratio(p, trgt, data_range=1)
@@ -221,6 +226,22 @@ def psnr_ssim(pred_img, gt_img):
         psnrs.append(psnr)
         ssims.append(ssim)
     return np.mean(np.asarray(psnrs)), np.mean(np.asarray(ssims))
+
+def rescale_img(x, mode='scale', perc=None, tmax=1.0, tmin=0.0):
+    if (mode == 'scale'):
+        if perc is None:
+            xmax = torch.max(x)
+            xmin = torch.min(x)
+        else:
+            xmin = np.percentile(x.detach().cpu().numpy(), perc)
+            xmax = np.percentile(x.detach().cpu().numpy(), 100 - perc)
+            x = torch.clamp(x, xmin, xmax)
+        if xmin == xmax:
+            return 0.5 * torch.ones_like(x) * (tmax - tmin) + tmin
+        x = ((x - xmin) / (xmax - xmin)) * (tmax - tmin) + tmin
+    elif (mode == 'clamp'):
+        x = torch.clamp(x, 0, 1)
+    return x
 
 def validate(val_dataloader, model, loss, epoch, writer, logger, device, image_resolution, args):
 
@@ -242,7 +263,7 @@ def validate(val_dataloader, model, loss, epoch, writer, logger, device, image_r
             coords = coords.to(device)
             gt_image = gt_image.to(device)
 
-            with torch.cuda.amp.autocast(enabled=True):
+            with torch.cuda.amp.autocast(enabled=args.amp):
 
                 output = model(img, coords)
 
@@ -266,7 +287,22 @@ def validate(val_dataloader, model, loss, epoch, writer, logger, device, image_r
 
                 logger.info(msg)
                 print(msg)
-                
+
+
+                out_img = lin2img(output, image_resolution)
+                gt_img = lin2img(gt_image, image_resolution)
+
+                out_img = rescale_img((out_img+1)/2, mode='clamp')
+
+                gt_img = rescale_img((gt_img+1) / 2, mode='clamp')
+
+                output_vs_gt = torch.cat((out_img, gt_img), dim=-1)
+                writer.add_image(str(input["idx"].tolist()) + "_pred_vs_gt", make_grid(output_vs_gt), global_step=epoch)
         writer.add_scalar('val_loss', losses.avg, epoch)
+        writer.add_scalar("val_psnr", psnrs.avg, epoch)
+        logger.info("avg loss " + str(losses.avg))
+        print("avg loss " + str(losses.avg))
+        logger.info("avg psnr " + str(psnrs.avg))
+        print("avg psnr " + str(psnrs.avg))
     
-    return psnrs.avg #replace with psnr
+    return psnrs.avg

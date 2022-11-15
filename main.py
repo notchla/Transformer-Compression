@@ -50,7 +50,7 @@ def add_arguments(parser):
 
     parser.add_argument(
         "--epochs",
-        default=2,
+        default=10,
         type=int,
         help="number of epochs"
     )
@@ -68,6 +68,10 @@ def add_arguments(parser):
         type=int,
         help="token size"
     )
+
+    parser.add_argument('--amp', action='store_true')
+    parser.add_argument('--no-amp', dest='amp', action='store_false')
+    parser.set_defaults(amp=False)
 
 def main(args):
     print(args)
@@ -96,15 +100,17 @@ def main(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if device == "cuda" : torch.backends.cudnn.benchmark = True
 
-    scaler = None
-    if device == "cuda":
-        scaler = torch.cuda.amp.GradScaler()
+    
+    scaler = torch.cuda.amp.GradScaler(enabled=args.amp)
 
     model = model.to(device)
 
     optim = torch.optim.Adam(lr=args.lr, params=model.parameters())
 
     loss = torch.nn.MSELoss().to(device)
+
+    # logger.info(model)
+
 
 
     best_perf = 0.0

@@ -14,7 +14,7 @@ class DIV2K(Dataset):
         self.img_channels = 3
         self.fnames = []
         self.file_type = '.png'
-        self.size = (768, 512)
+        self.size = (192, 128)#(768, 512)
 
         if split == 'train':
             for i in range(0,800):
@@ -66,7 +66,7 @@ class CoordDataset(Dataset):
         self.transform = Compose([
             Resize(img_resolution),
             ToTensor(),
-            #Normalize(torch.Tensor([0.5]), torch.Tensor([0.5]))
+            Normalize(torch.Tensor([0.5]), torch.Tensor([0.5]))
         ])
 
         self.dataset = dataset
