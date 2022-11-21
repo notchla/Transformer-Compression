@@ -19,6 +19,7 @@ class PointWiseInputOffsetMLP(nn.Module):
 
         layers.append(nn.Linear(self.hidden_dim, self.token_size))
         self.layers = layers
+        self.layers.apply(self._init_weights)
 
     def forward(self, x):
 
@@ -27,6 +28,13 @@ class PointWiseInputOffsetMLP(nn.Module):
             x = self.activation(x)
 
         return x
+
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            nn.init.xavier_normal_(m.weight)
+            if isinstance(m, nn.Linear) and m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+
 
 
 

@@ -34,9 +34,9 @@ def save_config(logdir, config):
 def get_datasets(args):
     if "DIV2K" in (args.train_dataset, args.val_dataset):
         if args.train_dataset == "DIV2K":
-            train_dataset = datasets.DIV2K("train", args.data_root)
+            train_dataset = datasets.DIV2K("train", args.data_root, crop=args.patch_size)
         if args.val_dataset == "DIV2K":
-            val_dataset = datasets.DIV2K("val", args.data_root)
+            val_dataset = datasets.DIV2K("val", args.data_root, crop=args.patch_size)
     return train_dataset, val_dataset
 
 def _ntuple(n):
@@ -293,8 +293,12 @@ def validate(val_dataloader, model, loss, epoch, writer, logger, device, image_r
                 gt_img = lin2img(gt_image, image_resolution)
 
                 out_img = rescale_img((out_img+1)/2, mode='clamp')
+                # out_img = rescale_img(out_img, mode='clamp')
+
 
                 gt_img = rescale_img((gt_img+1) / 2, mode='clamp')
+                # gt_img = rescale_img(gt_img, mode='clamp')
+
 
                 output_vs_gt = torch.cat((out_img, gt_img), dim=-1)
                 writer.add_image(str(input["idx"].tolist()) + "_pred_vs_gt", make_grid(output_vs_gt), global_step=epoch)

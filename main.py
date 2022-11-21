@@ -30,14 +30,14 @@ def add_arguments(parser):
 
     parser.add_argument(
         "--batch_size",
-        default=1,
+        default=32,
         type=int,
         help="batch size"
     )
 
     parser.add_argument(
         "--num_workers",
-        default=4,
+        default=16,
         type=int,
         help="batch size"
     )
@@ -50,7 +50,7 @@ def add_arguments(parser):
 
     parser.add_argument(
         "--epochs",
-        default=10,
+        default=400,
         type=int,
         help="number of epochs"
     )
@@ -63,10 +63,24 @@ def add_arguments(parser):
     )
 
     parser.add_argument(
+        "--val_frequency",
+        default=10,
+        type=int,
+        help="number of epochs between validation"
+    )
+
+    parser.add_argument(
         "--token_size",
         default=64,
         type=int,
         help="token size"
+    )
+
+    parser.add_argument(
+        "--patch_size",
+        default=32,
+        type=int,
+        help="random crop size"
     )
 
     parser.add_argument('--amp', action='store_true')
@@ -87,7 +101,7 @@ def main(args):
 
     logger.info((len(train_dataset), len(val_dataset)))
 
-    img_resolution = (train_dataset.size[1], train_dataset.size[0])
+    img_resolution = (train_dataset.img_resolution[1], train_dataset.img_resolution[0])
 
     train_dataset = CoordDataset(train_dataset, img_resolution=img_resolution)
     val_dataset = CoordDataset(val_dataset, img_resolution=img_resolution)
@@ -119,21 +133,22 @@ def main(args):
 
     for epoch in range(train_epochs):
         utils.train(train_dataloader, model, loss, optim, epoch, writer, logger, device, scaler, args)
-        val_perf = utils.validate(val_dataloader, model, loss, epoch, writer, logger, device, img_resolution, args)
+        if epoch % args.val_frequency == 0:
+            val_perf = utils.validate(val_dataloader, model, loss, epoch, writer, logger, device, img_resolution, args)
 
-        if val_perf > best_perf:
-            best_perf = val_perf
-            best_model=True
-        else:
-            best_model = False
-        logger.info("=> saving chekpoint to {}".format(logdir))
-        utils.save_checkpoint({
-            "epoch" : epoch + 1,
-            "state_dict" : model.state_dict(),
-            "perf" : val_perf,
-            "last_epoch": epoch,
-            "optimizer": optim.state_dict()
-        }, best_model, logdir)
+            if val_perf > best_perf:
+                best_perf = val_perf
+                best_model=True
+            else:
+                best_model = False
+            logger.info("=> saving chekpoint to {}".format(logdir))
+            utils.save_checkpoint({
+                "epoch" : epoch + 1,
+                "state_dict" : model.state_dict(),
+                "perf" : val_perf,
+                "last_epoch": epoch,
+                "optimizer": optim.state_dict()
+            }, best_model, logdir)
     
     final_model_state_file = os.path.join(logdir, "final_state.pth.tar")
     logger.info('saving final model state to {}'.format(
