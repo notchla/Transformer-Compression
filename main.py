@@ -43,14 +43,14 @@ def add_arguments(parser):
     )
     parser.add_argument(
         "--lr",
-        default=1e-3,
+        default=1e-5,
         type=float,
         help="optimizer lr"
     )
 
     parser.add_argument(
         "--epochs",
-        default=400,
+        default=800,
         type=int,
         help="number of epochs"
     )
@@ -123,7 +123,7 @@ def main(args):
 
     loss = torch.nn.MSELoss().to(device)
 
-    # logger.info(model)
+    logger.info(model)
 
 
 

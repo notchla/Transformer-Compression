@@ -190,6 +190,7 @@ def train(train_dataloader, model, loss, optim, epoch, writer, logger, device, s
                       data_time=data_time, loss=losses)
             logger.info(msg)
             print(msg)
+            # logger.info(output)
 
             global_steps = i + epoch*len(train_dataloader)
             writer.add_scalar('train_loss', losses.val, global_steps)
@@ -215,10 +216,10 @@ def psnr_ssim(pred_img, gt_img):
         p = pred_img[i].transpose(1, 2, 0)
         trgt = gt_img[i].transpose(1, 2, 0)
 
-        p = (p / 2.) + 0.5
+        # p = (p / 2.) + 0.5
         p = np.clip(p, a_min=0., a_max=1.)
 
-        trgt = (trgt / 2.) + 0.5
+        # trgt = (trgt / 2.) + 0.5
 
         ssim = skimage.metrics.structural_similarity(p, trgt, multichannel=True, data_range=1)
         psnr = skimage.metrics.peak_signal_noise_ratio(p, trgt, data_range=1)
@@ -292,12 +293,12 @@ def validate(val_dataloader, model, loss, epoch, writer, logger, device, image_r
                 out_img = lin2img(output, image_resolution)
                 gt_img = lin2img(gt_image, image_resolution)
 
-                out_img = rescale_img((out_img+1)/2, mode='clamp')
-                # out_img = rescale_img(out_img, mode='clamp')
+                # out_img = rescale_img((out_img+1)/2, mode='clamp')
+                out_img = rescale_img(out_img, mode='clamp')
 
 
-                gt_img = rescale_img((gt_img+1) / 2, mode='clamp')
-                # gt_img = rescale_img(gt_img, mode='clamp')
+                # gt_img = rescale_img((gt_img+1) / 2, mode='clamp')
+                gt_img = rescale_img(gt_img, mode='clamp')
 
 
                 output_vs_gt = torch.cat((out_img, gt_img), dim=-1)

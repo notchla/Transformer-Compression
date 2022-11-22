@@ -197,10 +197,18 @@ class StyleMlp(nn.Module):
             layers.append(act_fun())
 
         self.model = nn.Sequential(*(layers))
+        self.model.apply(self._init_weights)
             
 
     def forward(self, x):
         return self.model(x)
+
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            nn.init.xavier_normal_(m.weight)
+            if isinstance(m, nn.Linear) and m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+
 
 class Decoder(nn.Module):
     def __init__(

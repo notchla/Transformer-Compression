@@ -71,7 +71,7 @@ class CoordDataset(Dataset):
         self.transform = Compose([
             Resize(img_resolution),
             ToTensor(),
-            Normalize(torch.Tensor([0.5]), torch.Tensor([0.5]))
+            # Normalize(torch.Tensor([0.5]), torch.Tensor([0.5]))
         ])
 
         self.dataset = dataset
