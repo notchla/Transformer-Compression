@@ -1,0 +1,5 @@
+improve image visualization for batches and patches
+test xcit positional encoding
+refactor modules in models
+add raytune
+test siren mlps
