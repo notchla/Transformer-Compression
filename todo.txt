@@ -1,5 +1,7 @@
-improve image visualization for batches and patches
+improve image visualization for batches and patches->Lorenzo
 test xcit positional encoding
 refactor modules in models
 add raytune
 test siren mlps
+play around with the network hyperparameters
+test infrastructure -> lorenzo

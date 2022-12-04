@@ -1,7 +1,7 @@
 from torch.utils.data import Dataset
 import os
 from PIL import Image
-from torchvision.transforms import Compose, ToTensor, Normalize, Resize, RandomCrop
+from torchvision.transforms import Compose, ToTensor, Resize, RandomCrop
 import torch
 import numpy as np
 

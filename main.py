@@ -7,6 +7,8 @@ from torch.utils.tensorboard import SummaryWriter
 from models import Model
 from datasets import CoordDataset
 from torch.utils.data import DataLoader
+from utils import get_mape_loss, PrefetchLoader
+from timm.data.loader import MultiEpochsDataLoader
 
 def add_arguments(parser):
     parser.add_argument("--save_dir", default='runs', type=str, help='path to save trained models and logs')
@@ -24,7 +26,7 @@ def add_arguments(parser):
         "--val_dataset",
         default="DIV2K",
         choices=(
-            "DIV2K"
+            "DIV2K",
         ),
     )
 
@@ -50,7 +52,7 @@ def add_arguments(parser):
 
     parser.add_argument(
         "--epochs",
-        default=800,
+        default=1600,
         type=int,
         help="number of epochs"
     )
@@ -83,9 +85,31 @@ def add_arguments(parser):
         help="random crop size"
     )
 
+    parser.add_argument(
+        "--ff_dims",
+        default=16,
+        type=int,
+        help="ff_dims for positional encoding"
+    )
+
+    parser.add_argument(
+        "--encoding_scale",
+        default=1.4,
+        type=int,
+        help="encoding scale for positional encoding"
+    )
+
     parser.add_argument('--amp', action='store_true')
     parser.add_argument('--no-amp', dest='amp', action='store_false')
     parser.set_defaults(amp=False)
+
+    parser.add_argument('--pos', action='store_true')
+    parser.add_argument('--no-pos', dest='pos', action='store_false')
+    parser.set_defaults(pos=True)
+
+    parser.add_argument('--prefetcher', action='store_true')
+    parser.add_argument('--no-prefetcher', dest='prefetcher', action='store_false')
+    parser.set_defaults(prefetcher=True)
 
 def main(args):
     print(args)
@@ -106,10 +130,17 @@ def main(args):
     train_dataset = CoordDataset(train_dataset, img_resolution=img_resolution)
     val_dataset = CoordDataset(val_dataset, img_resolution=img_resolution)
 
-    train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, pin_memory=True)
-    val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=True)
+    # train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, pin_memory=True)
+    # val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=True)
 
-    model = Model(args.token_size)
+    train_dataloader = MultiEpochsDataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, pin_memory=True)
+    val_dataloader = MultiEpochsDataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=True)
+
+    if args.prefetcher:
+        train_dataloader = PrefetchLoader(train_dataloader)
+        val_dataloader = PrefetchLoader(val_dataloader)
+
+    model = Model(args, img_resolution)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if device == "cuda" : torch.backends.cudnn.benchmark = True
@@ -121,6 +152,7 @@ def main(args):
 
     optim = torch.optim.Adam(lr=args.lr, params=model.parameters())
 
+    # loss = get_mape_loss()
     loss = torch.nn.MSELoss().to(device)
 
     logger.info(model)
@@ -154,6 +186,7 @@ def main(args):
     logger.info('saving final model state to {}'.format(
         final_model_state_file))
     torch.save(model.state_dict(), final_model_state_file)
+    logger.info("best model val psnr {}".format(best_perf))
     writer.close()
 
 if __name__ == "__main__":

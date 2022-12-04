@@ -311,3 +311,37 @@ def validate(val_dataloader, model, loss, epoch, writer, logger, device, image_r
         print("avg psnr " + str(psnrs.avg))
     
     return psnrs.avg
+
+def get_mape_loss():
+    def mape_loss(output, target):
+        abs = torch.abs(output - target)
+        target_abs = torch.abs(target)
+        eps = (torch.ones(target.shape)*torch.finfo(torch.float64).eps).to(target.device)
+        denominator = torch.maximum(target_abs, eps)
+        return torch.mean( abs / (denominator)).to(target.device)
+    return mape_loss
+
+class PrefetchLoader:
+    def __init__(self, loader) -> None:
+        self.loader = loader
+    def __iter__(self):
+        stream = torch.cuda.Stream()
+        first = True
+
+        for next_input, next_target in self.loader:
+            with torch.cuda.stream(stream):
+                next_input = {k: v.cuda(non_blocking=True) for k, v, in next_input.items()}
+                next_target = {k: v.cuda(non_blocking=True) for k, v, in next_target.items()}
+            if not first:
+                yield input, target
+            else:
+                first = False
+            
+            torch.cuda.current_stream().wait_stream(stream)
+            input = next_input
+            target = next_target
+        
+        yield input, target
+    
+    def __len__(self):
+        return len(self.loader)
