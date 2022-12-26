@@ -1,6 +1,7 @@
 import argparse
 import random
 import os
+import json
 import utils
 import torch
 from torch.utils.tensorboard import SummaryWriter
@@ -10,6 +11,20 @@ from torch.utils.data import DataLoader
 from utils import get_mape_loss, PrefetchLoader
 from timm.data.loader import MultiEpochsDataLoader
 
+def reload_arguments(path):
+    with open(os.path.join(path,"params.json"), "r") as f:
+        parser_model = argparse.ArgumentParser()
+        model_args = argparse.Namespace()
+        d = json.load(f)
+        if "pos" not in d:
+            d["pos"] = None
+        if "amp" not in d:
+            d["amp"] = None
+        if "conditional" not in d:
+            d["conditional"] = None
+        model_args.__dict__.update(d)
+    return model_args
+
 def add_arguments(parser):
     parser.add_argument("--save_dir", default='runs', type=str, help='path to save trained models and logs')
     parser.add_argument("--data_root", default='datasets', type=str, help='path to dataset folder')
@@ -18,7 +33,7 @@ def add_arguments(parser):
         "--train_dataset",
         default="DIV2K",
         choices=(
-            "DIV2K"
+            "DIV2K","CIFAR10",
         ),
     )
 
@@ -26,7 +41,7 @@ def add_arguments(parser):
         "--val_dataset",
         default="DIV2K",
         choices=(
-            "DIV2K",
+            "DIV2K","CIFAR10",
         ),
     )
 
@@ -99,6 +114,19 @@ def add_arguments(parser):
         help="encoding scale for positional encoding"
     )
 
+    parser.add_argument(
+        "--conditional",
+        nargs='*',
+        type=str,
+        help="train only on a subset of classes (CIFAR10) Classes: airplane  automobile  bird  cat  deer  dog  frog  horse  ship  truck"
+    )
+
+    parser.add_argument(
+        "--restart_training",
+        default=False,
+        help="restart from a given checkpoint. Specify the full path of the folder. Loads model_best.pth.tar and params.json. Other args are ignored."
+    )
+
     parser.add_argument('--amp', action='store_true')
     parser.add_argument('--no-amp', dest='amp', action='store_false')
     parser.set_defaults(amp=False)
@@ -113,6 +141,12 @@ def add_arguments(parser):
 
 def main(args):
     print(args)
+    reload_path = None
+    if args.restart_training:
+        reload_path = args.restart_training
+        args = reload_arguments(reload_path)
+        print("Reloaded args: ",args)
+
     run_id = random.randint(1, 100000)
     logdir = os.path.join(args.save_dir, str(run_id))
     writer = SummaryWriter(logdir)
@@ -142,6 +176,14 @@ def main(args):
 
     model = Model(args, img_resolution)
 
+    if reload_path is not None:
+        if torch.cuda.is_available():
+            model.load_state_dict(torch.load(os.path.join(reload_path,"model_best.pth.tar")))
+        else:
+            model.load_state_dict(torch.load(os.path.join(reload_path, "model_best.pth.tar"), map_location=torch.device('cpu')))
+        logger.info(f"Reloaded weights from run: {reload_path}")
+
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if device == "cuda" : torch.backends.cudnn.benchmark = True
 
@@ -153,6 +195,8 @@ def main(args):
     optim = torch.optim.Adam(lr=args.lr, params=model.parameters())
 
     # loss = get_mape_loss()
+    #loss = torch.nn.L1Loss().to(device)
+    
     loss = torch.nn.MSELoss().to(device)
 
     logger.info(model)

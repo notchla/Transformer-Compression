@@ -26,3 +26,10 @@ class Model(nn.Module):
         decoder_out = self.decoder(latent_positions_decoder, cls_token)
         out = self.output_mlp(decoder_out, cls_token)
         return out
+
+    def get_image_code(self, img, coords):
+        latent_offsets = self.input_mlp(img)
+        latent_positions = self.position_mlp_encoder(coords)
+        encoder_tokes = torch.cat((latent_offsets, latent_positions), -1)
+        cls_token = self.encoder(encoder_tokes)
+        return cls_token

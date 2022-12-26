@@ -90,3 +90,54 @@ class CoordDataset(Dataset):
 
         return in_dict, gt_dict
 
+
+class CIFAR10(Dataset):
+    """
+    Download data from: https://s3.amazonaws.com/fast-ai-imageclas/cifar10.tgz
+    """
+    def __init__(self, split, data_root, downsampled=True, crop=None, conditional = None):
+        super().__init__()
+        assert split in ['train','val'], "Unknown split"
+
+        self.root =  os.path.join(data_root,'cifar10')
+        self.img_channels = 3
+        self.fnames = []
+        self.file_type = '.png'
+        self.size = (32, 32)
+        self.patch_size = crop
+        self.crop =  None
+        self.img_resolution = (crop, crop) if crop else self.size
+
+        classes = ["airplane", "automobile","bird","cat","deer","dog","frog","horse","ship","truck"]
+
+        if conditional is not None:
+            for el in conditional:
+                assert el in classes, 'Unknown class (avilable: ["airplane", "automobile","bird","cat","deer","dog","frog","horse","ship","truck"]'
+            classes = conditional
+
+        if split == 'train':
+            for im_class in classes:
+                for img in os.listdir(os.path.join(self.root, "train", im_class)):
+                    self.fnames.append(f"train/{im_class}/{img}")
+        elif split == 'val':
+            for im_class in classes:
+                for img in os.listdir(os.path.join(self.root, "test", im_class)):
+                    self.fnames.append(f"test/{im_class}/{img}")
+        self.downsampled = False
+
+    def __len__(self):
+        return len(self.fnames)
+
+    def __getitem__(self, idx):
+        path = os.path.join(self.root, self.fnames[idx])
+        img = Image.open(path)
+        if self.downsampled:
+            width, height = img.size  # Get dimensions
+            if height > width: img = img.rotate(90, expand=1)
+            img.thumbnail(self.size, Image.ANTIALIAS)
+        if self.crop:
+            img = self.crop(img)
+        return img
+
+    def get_fnames(self, indexes):
+        return [self.fnames[i] for i in indexes]

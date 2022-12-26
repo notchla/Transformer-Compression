@@ -37,7 +37,14 @@ def get_datasets(args):
             train_dataset = datasets.DIV2K("train", args.data_root, crop=args.patch_size)
         if args.val_dataset == "DIV2K":
             val_dataset = datasets.DIV2K("val", args.data_root, crop=args.patch_size)
+    if "CIFAR10" in (args.train_dataset, args.val_dataset):
+        if args.train_dataset == "CIFAR10":
+            train_dataset = datasets.CIFAR10("train", args.data_root, conditional = args.conditional)
+        if args.val_dataset == "CIFAR10":
+            val_dataset = datasets.CIFAR10("val", args.data_root, conditional = args.conditional)
+        
     return train_dataset, val_dataset
+
 
 def _ntuple(n):
     def parse(x):
