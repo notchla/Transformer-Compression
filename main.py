@@ -12,6 +12,7 @@ from utils import get_mape_loss, PrefetchLoader
 from timm.data.loader import MultiEpochsDataLoader
 
 def reload_arguments(path):
+    #reload arguments from an already trained model
     with open(os.path.join(path,"params.json"), "r") as f:
         parser_model = argparse.ArgumentParser()
         model_args = argparse.Namespace()
@@ -112,6 +113,13 @@ def add_arguments(parser):
         default=1.4,
         type=int,
         help="encoding scale for positional encoding"
+    )
+
+    parser.add_argument(
+        "--custom_hidden_multiplier",
+        default=None,
+        type=int,
+        help="If None, the hidden layers of MLPs have the dimension of token_size/2. Otherwise, they can be set to custom_hidden_multiplier*token_size/2"
     )
 
     parser.add_argument(

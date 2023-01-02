@@ -108,7 +108,7 @@ class CIFAR10(Dataset):
         self.crop =  None
         self.img_resolution = (crop, crop) if crop else self.size
 
-        classes = ["airplane", "automobile","bird","cat","deer","dog","frog","horse","ship","truck"]
+        classes = ["airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck"]
 
         if conditional is not None:
             for el in conditional:
