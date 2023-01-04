@@ -31,20 +31,29 @@ def save_config(logdir, config):
     with open(param_path, 'w') as fp:
         json.dump(config.__dict__, fp, indent=4, sort_keys=True)
 
-def get_datasets(args):
+def get_datasets(args, overwrite_data_root = None):
+    data_root = overwrite_data_root if overwrite_data_root is not None else args.data_root
     if "DIV2K" in (args.train_dataset, args.val_dataset):
         if args.train_dataset == "DIV2K":
-            train_dataset = datasets.DIV2K("train", args.data_root, crop=args.patch_size)
+            train_dataset = datasets.DIV2K("train", data_root, crop=args.patch_size)
         if args.val_dataset == "DIV2K":
-            val_dataset = datasets.DIV2K("val", args.data_root, crop=args.patch_size)
+            val_dataset = datasets.DIV2K("val", data_root, crop=args.patch_size)
     if "CIFAR10" in (args.train_dataset, args.val_dataset):
         if args.train_dataset == "CIFAR10":
-            train_dataset = datasets.CIFAR10("train", args.data_root, conditional = args.conditional)
+            train_dataset = datasets.CIFAR10("train", data_root, conditional = args.conditional)
         if args.val_dataset == "CIFAR10":
-            val_dataset = datasets.CIFAR10("val", args.data_root, conditional = args.conditional)
+            val_dataset = datasets.CIFAR10("val", data_root, conditional = args.conditional)
         
     return train_dataset, val_dataset
 
+def get_val_dataset(name, data_root, type = "val", idx = None):
+    if name.upper() == "DIV2K" :
+        return datasets.DIV2K_evaluation(type, data_root, idx=idx)
+    if name.upper() =="CIFAR10" :
+        return datasets.CIFAR10(type, data_root)
+    if name.upper() =="KODAK" :
+        return datasets.KODAK_evaluation(data_root, idx=idx)
+        
 
 def _ntuple(n):
     def parse(x):
