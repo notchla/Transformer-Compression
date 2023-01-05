@@ -35,9 +35,9 @@ def get_datasets(args, overwrite_data_root = None):
     data_root = overwrite_data_root if overwrite_data_root is not None else args.data_root
     if "DIV2K" in (args.train_dataset, args.val_dataset):
         if args.train_dataset == "DIV2K":
-            train_dataset = datasets.DIV2K("train", data_root, crop=args.patch_size)
+            train_dataset = datasets.DIV2K("train", data_root, random_crop=args.patch_size)
         if args.val_dataset == "DIV2K":
-            val_dataset = datasets.DIV2K("val", data_root, crop=args.patch_size)
+            val_dataset = datasets.DIV2K("val", data_root, random_crop=args.patch_size)
     if "CIFAR10" in (args.train_dataset, args.val_dataset):
         if args.train_dataset == "CIFAR10":
             train_dataset = datasets.CIFAR10("train", data_root, conditional = args.conditional)
