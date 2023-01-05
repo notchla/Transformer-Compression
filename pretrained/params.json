@@ -1,0 +1,22 @@
+{
+    "amp": false,
+    "batch_size": 32,
+    "conditional": null,
+    "custom_hidden_multiplier": 2,
+    "data_root": "/cluster/scratch/fdeaglio/datasets",
+    "encoding_scale": 1.4,
+    "epochs": 1600,
+    "ff_dims": 16,
+    "frequent": 150,
+    "lr": 0.0005,
+    "num_workers": 16,
+    "patch_size": 32,
+    "pos": true,
+    "prefetcher": true,
+    "restart_training": false,
+    "save_dir": "runs",
+    "token_size": 256,
+    "train_dataset": "CIFAR10",
+    "val_dataset": "CIFAR10",
+    "val_frequency": 10
+}
