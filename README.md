@@ -45,7 +45,7 @@ Command explaination and further options can be found in the help
 ```
 python main.py --help
 ```
-## Integrate with your tools
+## Evaluate
 
 Results are provided diring training but you can use a standalone script to evaluate the model (PSNR) also using the compression. 
 
